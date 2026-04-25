@@ -1,0 +1,17 @@
+// agent-sdk/src/index.ts
+
+import express from 'express';
+import { validateConfig, config } from './config.js';
+import { healthRouter } from './routes/health.js';
+import { briefRouter } from './routes/brief.js';
+
+validateConfig();
+
+const app = express();
+app.use(express.json({ limit: '10mb' }));
+app.use('/health', healthRouter);
+app.use('/brief', briefRouter);
+
+app.listen(config.port, () => {
+  console.log(`elan Agent SDK running on port ${config.port}`);
+});
