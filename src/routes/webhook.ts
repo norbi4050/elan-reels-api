@@ -1,7 +1,7 @@
 // agent-sdk/src/routes/webhook.ts
 
 import { Router } from 'express';
-import { upsertVideoJob, supabase } from '../supabase.js';
+import { upsertVideoJob, supabase, updateReelStatus } from '../supabase.js';
 
 export const webhookRouter = Router();
 
@@ -41,5 +41,15 @@ webhookRouter.post('/fal', async (req, res) => {
     }
   } catch (err) {
     console.error('webhook/fal error:', err);
+    // Best-effort: try to mark reel as ERROR
+    const { reel_id } = req.query as { reel_id: string; scene_index: string };
+    try {
+      await updateReelStatus(reel_id, 'ERROR', {
+        error_stage: 'VIDEO_RENDERING',
+        error_detail: String(err),
+      });
+    } catch {
+      // ignore secondary error
+    }
   }
 });

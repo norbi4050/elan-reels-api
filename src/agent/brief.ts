@@ -34,10 +34,8 @@ export async function runBrief(brief: Brief): Promise<BriefResponse> {
   for (const scene of storyboard.scenes) {
     const referenceUrl = spaceCache[scene.espacio_fisico];
 
-    const [startUrl, endUrl] = await Promise.all([
-      generateAndJudge(scene, 'start', referenceUrl),
-      generateAndJudge(scene, 'end', referenceUrl),
-    ]);
+    const startUrl = await generateAndJudge(scene, 'start', referenceUrl);
+    const endUrl = await generateAndJudge(scene, 'end', startUrl);
 
     startUrls.push(startUrl);
     endUrls.push(endUrl);

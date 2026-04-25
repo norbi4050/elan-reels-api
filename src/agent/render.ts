@@ -9,6 +9,7 @@ import { generateVideo } from '../tools/generateVideo.js';
 import { generateVoiceover } from '../tools/generateVoiceover.js';
 import { generateCaptions } from '../tools/generateCaptions.js';
 import { concatAndMix } from '../tools/concatAndMix.js';
+import { validateVideo } from '../tools/validateVideo.js';
 import { supabase, updateReelStatus, getPendingVideoJobs } from '../supabase.js';
 import type { RenderRequest, RenderResponse } from '../types/index.js';
 
@@ -18,14 +19,15 @@ export async function runRender(request: RenderRequest): Promise<RenderResponse>
   try {
     await updateReelStatus(reel_id, 'VIDEO_RENDERING');
 
+    const sceneMap = new Map(storyboard.scenes.map(s => [s.id, s]));
     const jobPromises = approved_scenes.map((scene, i) =>
       generateVideo({
         reelId: reel_id,
         sceneIndex: i,
         startFrameUrl: scene.start_url,
         endFrameUrl: scene.end_url,
-        motionPrompt: storyboard.scenes[scene.scene_id - 1]?.motion_prompt ?? 'static shot, 5 seconds',
-        durationS: storyboard.scenes[scene.scene_id - 1]?.duracion_s ?? 5,
+        motionPrompt: sceneMap.get(scene.scene_id)?.motion_prompt ?? 'static shot, 5 seconds',
+        durationS: sceneMap.get(scene.scene_id)?.duracion_s ?? 5,
       })
     );
     await Promise.all(jobPromises);
@@ -57,6 +59,10 @@ export async function runAssemble(reelId: string, storyboard: RenderRequest['sto
       const localPath = join(workDir, `clip-${job.scene_index}.mp4`);
       await downloadFile(job.result_url, localPath);
       clipPaths.push(localPath);
+      const validation = await validateVideo({ videoUrl: localPath, expectedDurationS: storyboard.scenes[job.scene_index]?.duracion_s ?? 5 });
+      if (!validation.valid) {
+        console.warn(`Scene ${job.scene_index} failed validation: ${validation.errors.join(', ')}`);
+      }
     }
 
     const voiceoverPath = join(workDir, 'voiceover.mp3');

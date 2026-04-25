@@ -1,9 +1,6 @@
 // agent-sdk/src/tools/concatAndMix.ts
 
 import ffmpeg from 'fluent-ffmpeg';
-import { writeFile, rm } from 'fs/promises';
-import { tmpdir } from 'os';
-import { join } from 'path';
 import type { Scene } from '../types/index.js';
 
 export async function concatAndMix(params: {
@@ -16,9 +13,7 @@ export async function concatAndMix(params: {
   const { clipPaths, scenes, voiceoverPath, srtPath, outputPath } = params;
 
   const crossfadeDuration = 0.3;
-  const concatListPath = join(tmpdir(), `concat-${Date.now()}.txt`);
-  const concatList = clipPaths.map(p => `file '${p}'`).join('\n');
-  await writeFile(concatListPath, concatList);
+  const escapedSrtPath = srtPath.replace(/\\/g, '/').replace(/:/g, '\\:');
 
   return new Promise((resolve, reject) => {
     const cmd = ffmpeg();
@@ -52,14 +47,13 @@ export async function concatAndMix(params: {
       .videoCodec('libx264')
       .audioCodec('aac')
       .outputOptions([
-        `-vf subtitles=${srtPath}:force_style='FontSize=22,Alignment=2,MarginV=40,PrimaryColour=&HFFFFFF&'`,
+        `-vf subtitles=${escapedSrtPath}:force_style='FontSize=22,Alignment=2,MarginV=40,PrimaryColour=&HFFFFFF&'`,
         '-movflags faststart',
         '-crf 18',
         '-preset fast',
       ])
       .output(outputPath)
       .on('end', async () => {
-        await rm(concatListPath, { force: true });
         resolve(outputPath);
       })
       .on('error', (err) => {
