@@ -29,13 +29,16 @@ export async function runBrief(brief: Brief): Promise<BriefResponse> {
 
   // Fire keyframe generation in background — don't block the HTTP response
   processKeyframesBackground(reelId, storyboard).catch(async (err) => {
-    console.error('processKeyframes error:', err);
+    console.error('[brief] processKeyframes FATAL error:', err);
     try {
       await updateReelStatus(reelId, 'ERROR', {
         error_stage: 'KEYFRAMES_RENDERING',
         error_detail: String(err),
       });
-    } catch { /* ignore */ }
+      console.log('[brief] reel marked ERROR in DB');
+    } catch (dbErr) {
+      console.error('[brief] ALSO failed to mark ERROR in DB:', dbErr);
+    }
   });
 
   return { reel_id: reelId, storyboard, status: 'processing' };
@@ -82,9 +85,16 @@ async function processKeyframesBackground(reelId: string, storyboard: Storyboard
 
 async function generateAndJudge(scene: Scene, role: 'start' | 'end', referenceUrl?: string): Promise<string> {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const url = await generateKeyframe({ scene, role, referenceImageUrl: referenceUrl });
-    const score = await judgeImage({ imageUrl: url, sceneBrief: `${scene.shot_template_id}: ${scene.subject}` });
-    if (score.pass || attempt === 1) return url;
+    try {
+      const url = await generateKeyframe({ scene, role, referenceImageUrl: referenceUrl });
+      const score = await judgeImage({ imageUrl: url, sceneBrief: `${scene.shot_template_id}: ${scene.subject}` });
+      if (score.pass || attempt === 1) return url;
+    } catch (err) {
+      console.error(`[brief] generateAndJudge attempt ${attempt} failed:`, err);
+      if (attempt === 1) throw err;
+      // retry without reference on timeout/error
+      referenceUrl = undefined;
+    }
   }
   throw new Error('unreachable');
 }
