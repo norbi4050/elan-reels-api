@@ -5,7 +5,7 @@ import { generateStoryboard } from './storyboard.js';
 import { generateKeyframe } from '../tools/generateKeyframe.js';
 import { judgeImage } from '../tools/judgeImage.js';
 import { supabase, updateReelStatus } from '../supabase.js';
-import type { Brief, BriefResponse, Scene } from '../types/index.js';
+import type { Brief, BriefResponse, Scene, Storyboard } from '../types/index.js';
 
 export async function runBrief(brief: Brief): Promise<BriefResponse> {
   const reelId = uuid();
@@ -27,16 +27,29 @@ export async function runBrief(brief: Brief): Promise<BriefResponse> {
   });
   if (error) throw new Error(`Failed to insert reel: ${error.message}`);
 
+  // Fire keyframe generation in background — don't block the HTTP response
+  processKeyframesBackground(reelId, storyboard).catch(async (err) => {
+    console.error('processKeyframes error:', err);
+    try {
+      await updateReelStatus(reelId, 'ERROR', {
+        error_stage: 'KEYFRAMES_RENDERING',
+        error_detail: String(err),
+      });
+    } catch { /* ignore */ }
+  });
+
+  return { reel_id: reelId, storyboard, status: 'processing' };
+}
+
+async function processKeyframesBackground(reelId: string, storyboard: Storyboard): Promise<void> {
   const spaceCache: Record<string, string> = {};
   const startUrls: string[] = [];
   const endUrls: string[] = [];
 
   for (const scene of storyboard.scenes) {
     const referenceUrl = spaceCache[scene.espacio_fisico];
-
     const startUrl = await generateAndJudge(scene, 'start', referenceUrl);
     const endUrl = await generateAndJudge(scene, 'end', startUrl);
-
     startUrls.push(startUrl);
     endUrls.push(endUrl);
     spaceCache[scene.espacio_fisico] = startUrl;
@@ -48,7 +61,15 @@ export async function runBrief(brief: Brief): Promise<BriefResponse> {
     keyframe_status: startUrls.map(() => 'ready'),
   });
 
-  return { reel_id: reelId, storyboard, keyframes_start_urls: startUrls, keyframes_end_urls: endUrls };
+  // Notify n8n that keyframes are ready
+  const n8nKeyframesUrl = process.env.N8N_KEYFRAMES_WEBHOOK_URL;
+  if (n8nKeyframesUrl) {
+    await fetch(n8nKeyframesUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reel_id: reelId, storyboard, keyframes_start_urls: startUrls, keyframes_end_urls: endUrls }),
+    });
+  }
 }
 
 async function generateAndJudge(scene: Scene, role: 'start' | 'end', referenceUrl?: string): Promise<string> {

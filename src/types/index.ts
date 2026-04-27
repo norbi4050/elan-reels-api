@@ -50,8 +50,7 @@ export interface Brief {
 export interface BriefResponse {
   reel_id: string;
   storyboard: Storyboard;
-  keyframes_start_urls: string[];
-  keyframes_end_urls: string[];
+  status: 'processing';
 }
 
 export interface RenderRequest {
