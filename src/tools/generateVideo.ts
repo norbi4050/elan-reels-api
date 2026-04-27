@@ -7,7 +7,7 @@ import { upsertVideoJob } from '../supabase.js';
 fal.config({ credentials: config.falKey });
 
 const HAPPYHORSE_MODEL = 'fal-ai/happyhorse/image-to-video';
-const KLING_MODEL = 'fal-ai/kling-video/v1.6/standard/image-to-video';
+const SEEDANCE_MODEL = 'bytedance/seedance-2.0/reference-to-video';
 
 export async function generateVideo(params: {
   reelId: string;
@@ -21,12 +21,10 @@ export async function generateVideo(params: {
   const webhookUrl = `${config.agentBaseUrl}/webhook/fal?reel_id=${reelId}&scene_index=${sceneIndex}`;
   const useHappyHorse = config.useHappyHorse;
 
-  // Kling only accepts "5" or "10"
-  const klingDuration = durationS >= 10 ? '10' : '5';
-  const modelId = useHappyHorse ? HAPPYHORSE_MODEL : KLING_MODEL;
+  const modelId = useHappyHorse ? HAPPYHORSE_MODEL : SEEDANCE_MODEL;
   const input = useHappyHorse
     ? { image_urls: [startFrameUrl, endFrameUrl], prompt: motionPrompt, prompt_strength: 0.9, duration: durationS, aspect_ratio: '9:16' }
-    : { image_url: startFrameUrl, prompt: motionPrompt, duration: klingDuration, aspect_ratio: '9:16' };
+    : { image_urls: [startFrameUrl, endFrameUrl], prompt: `@Image1 is the opening frame, @Image2 is the closing frame. ${motionPrompt}`, duration: String(durationS), aspect_ratio: '9:16', resolution: '1080p', generate_audio: false };
 
   const { request_id } = await fal.queue.submit(modelId, { input, webhookUrl });
 
