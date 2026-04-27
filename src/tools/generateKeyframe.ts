@@ -34,22 +34,7 @@ export async function generateKeyframe(params: {
     getVisualSystem(),
   ]);
 
-  const prompt = buildPrompt(scene, template, vs, role);
-
-  if (referenceImageUrl) {
-    const refResponse = await fetch(referenceImageUrl, { signal: AbortSignal.timeout(30000) });
-    const refBuffer = await refResponse.arrayBuffer();
-    const refFile = new File([refBuffer], 'reference.jpg', { type: 'image/jpeg' });
-    const editResponse = await openai.images.edit({
-      model: 'gpt-image-1',
-      image: refFile,
-      prompt: `Maintain exact same architectural space, materials, and lighting from this reference image. ${prompt}`,
-      size: '1024x1536' as '1024x1024',
-    });
-    const b64 = editResponse.data?.[0]?.b64_json;
-    if (!b64) throw new Error('generateKeyframe: OpenAI edit returned no image data');
-    return uploadBase64ToStorage(b64);
-  }
+  const prompt = buildPrompt(scene, template, vs, role, !!referenceImageUrl);
 
   const response = await openai.images.generate({
     model: 'gpt-image-1',
@@ -63,15 +48,18 @@ export async function generateKeyframe(params: {
   return uploadBase64ToStorage(b64);
 }
 
-function buildPrompt(scene: Scene, template: ShotTemplate, vs: Record<string, unknown>, role: 'start' | 'end'): string {
+function buildPrompt(scene: Scene, template: ShotTemplate, vs: Record<string, unknown>, role: 'start' | 'end', hasReference: boolean): string {
   const lensMap = vs.lens_language as Record<string, string>;
   const lens = getLens(template.id, lensMap);
   const rolePrefix = role === 'end'
     ? 'Show the final resting state of this scene. '
     : 'Show the initial state of this scene. ';
+  const referenceNote = hasReference
+    ? 'Same architectural space and materials as previous shot in this room. '
+    : '';
 
   return [
-    rolePrefix + template.skeleton_prompt,
+    referenceNote + rolePrefix + template.skeleton_prompt,
     `Subject: ${scene.subject}`,
     `Lighting: ${vs.lighting as string}`,
     `Color grading: ${vs.color_grading as string}`,
