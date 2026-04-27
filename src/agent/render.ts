@@ -19,17 +19,29 @@ export async function runRender(request: RenderRequest): Promise<RenderResponse>
   try {
     await updateReelStatus(reel_id, 'VIDEO_RENDERING');
 
+    // Skip scenes that already have a done clip
+    const { data: doneJobs } = await supabase
+      .from('video_render_jobs')
+      .select('scene_index')
+      .eq('reel_id', reel_id)
+      .eq('status', 'done');
+    const doneIndices = new Set((doneJobs ?? []).map((j: { scene_index: number }) => j.scene_index));
+
     const sceneMap = new Map(storyboard.scenes.map(s => [s.id, s]));
-    const jobPromises = approved_scenes.map((scene, i) =>
-      generateVideo({
+    const pendingScenes = approved_scenes.filter((_, i) => !doneIndices.has(i));
+    console.log(`[render] ${doneIndices.size} scenes already done, submitting ${pendingScenes.length} new`);
+
+    const jobPromises = pendingScenes.map((scene, idx) => {
+      const i = approved_scenes.indexOf(scene);
+      return generateVideo({
         reelId: reel_id,
         sceneIndex: i,
         startFrameUrl: scene.start_url,
         endFrameUrl: scene.end_url,
         motionPrompt: sceneMap.get(scene.scene_id)?.motion_prompt ?? 'static shot, 5 seconds',
         durationS: sceneMap.get(scene.scene_id)?.duracion_s ?? 5,
-      })
-    );
+      });
+    });
     await Promise.all(jobPromises);
 
     return {

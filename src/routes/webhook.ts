@@ -25,12 +25,20 @@ webhookRouter.post('/fal', async (req, res) => {
 
     const { data: jobs } = await supabase
       .from('video_render_jobs')
-      .select('status, result_url')
+      .select('scene_index, status, result_url')
       .eq('reel_id', reel_id);
 
-    const total = jobs?.length ?? 0;
-    const done = jobs?.filter(j => j.status === 'done').length ?? 0;
-    const errored = jobs?.filter(j => j.status === 'error').length ?? 0;
+    // Collapse to best status per scene_index (done > error > pending)
+    const byScene = new Map<number, string>();
+    for (const j of jobs ?? []) {
+      const cur = byScene.get(j.scene_index);
+      if (!cur || j.status === 'done' || (j.status === 'error' && cur === 'pending')) {
+        byScene.set(j.scene_index, j.status);
+      }
+    }
+    const total = byScene.size;
+    const done = [...byScene.values()].filter(s => s === 'done').length;
+    const errored = [...byScene.values()].filter(s => s === 'error').length;
 
     if (done + errored === total && total > 0) {
       const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL!;
