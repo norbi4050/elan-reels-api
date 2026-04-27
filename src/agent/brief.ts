@@ -49,8 +49,12 @@ async function processKeyframesBackground(reelId: string, storyboard: Storyboard
   const startUrls: string[] = [];
   const endUrls: string[] = [];
 
+  // Heartbeat: confirm background process started
+  await supabase.from('reels').update({ updated_at: new Date().toISOString() }).eq('id', reelId);
+  console.log(`[brief] background started for reel ${reelId}, ${storyboard.scenes.length} scenes`);
+
   for (const scene of storyboard.scenes) {
-    console.log(`[brief] scene ${scene.id} start...`);
+    console.log(`[brief] scene ${scene.id} start (${startUrls.length + 1}/${storyboard.scenes.length})...`);
     const referenceUrl = spaceCache[scene.espacio_fisico];
     const startUrl = await generateAndJudge(scene, 'start', referenceUrl);
     console.log(`[brief] scene ${scene.id} start OK: ${startUrl}`);
@@ -59,6 +63,13 @@ async function processKeyframesBackground(reelId: string, storyboard: Storyboard
     startUrls.push(startUrl);
     endUrls.push(endUrl);
     spaceCache[scene.espacio_fisico] = startUrl;
+
+    // Progress heartbeat after each scene
+    await supabase.from('reels').update({
+      updated_at: new Date().toISOString(),
+      keyframe_status: startUrls.map(() => 'ready'),
+    }).eq('id', reelId);
+    console.log(`[brief] scene ${scene.id} progress saved (${startUrls.length}/${storyboard.scenes.length})`);
   }
 
   console.log(`[brief] all ${startUrls.length} scenes done, updating DB...`);
