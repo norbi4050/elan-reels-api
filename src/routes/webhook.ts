@@ -32,7 +32,7 @@ webhookRouter.post('/fal', async (req, res) => {
     const errored = jobs?.filter(j => j.status === 'error').length ?? 0;
 
     if (done + errored === total && total > 0) {
-      const n8nWebhookUrl = `${process.env.WEBHOOK_BASE_URL}/webhook/rp-video-done`;
+      const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL!;
       await fetch(n8nWebhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
