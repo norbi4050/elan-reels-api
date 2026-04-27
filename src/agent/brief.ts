@@ -47,28 +47,36 @@ async function processKeyframesBackground(reelId: string, storyboard: Storyboard
   const endUrls: string[] = [];
 
   for (const scene of storyboard.scenes) {
+    console.log(`[brief] scene ${scene.id} start...`);
     const referenceUrl = spaceCache[scene.espacio_fisico];
     const startUrl = await generateAndJudge(scene, 'start', referenceUrl);
+    console.log(`[brief] scene ${scene.id} start OK: ${startUrl}`);
     const endUrl = await generateAndJudge(scene, 'end', startUrl);
+    console.log(`[brief] scene ${scene.id} end OK: ${endUrl}`);
     startUrls.push(startUrl);
     endUrls.push(endUrl);
     spaceCache[scene.espacio_fisico] = startUrl;
   }
 
+  console.log(`[brief] all ${startUrls.length} scenes done, updating DB...`);
   await updateReelStatus(reelId, 'AWAITING_SCENE_APPROVAL', {
     keyframes_start_urls: startUrls,
     keyframes_end_urls: endUrls,
     keyframe_status: startUrls.map(() => 'ready'),
   });
+  console.log(`[brief] DB updated — calling n8n keyframes webhook`);
 
   // Notify n8n that keyframes are ready
   const n8nKeyframesUrl = process.env.N8N_KEYFRAMES_WEBHOOK_URL;
   if (n8nKeyframesUrl) {
-    await fetch(n8nKeyframesUrl, {
+    const r = await fetch(n8nKeyframesUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reel_id: reelId, storyboard, keyframes_start_urls: startUrls, keyframes_end_urls: endUrls }),
     });
+    console.log(`[brief] n8n webhook response: ${r.status}`);
+  } else {
+    console.warn('[brief] N8N_KEYFRAMES_WEBHOOK_URL not set');
   }
 }
 
