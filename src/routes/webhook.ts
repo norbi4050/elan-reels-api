@@ -11,15 +11,16 @@ webhookRouter.post('/fal', async (req, res) => {
     const { reel_id, scene_index } = req.query as { reel_id: string; scene_index: string };
     const payload = req.body;
 
-    const isError = payload.status === 'ERROR' || !payload.output?.video?.url;
+    const videoUrl = payload.payload?.video?.url ?? payload.output?.video?.url;
+    const isError = payload.status === 'ERROR' || !videoUrl;
 
     await upsertVideoJob({
       request_id: payload.request_id ?? 'unknown',
       reel_id,
       scene_index: Number(scene_index),
       status: isError ? 'error' : 'done',
-      result_url: payload.output?.video?.url,
-      error: isError ? JSON.stringify(payload.error ?? 'no output') : undefined,
+      result_url: videoUrl,
+      error: isError ? JSON.stringify(payload.error ?? payload.detail ?? 'no output') : undefined,
     });
 
     const { data: jobs } = await supabase
