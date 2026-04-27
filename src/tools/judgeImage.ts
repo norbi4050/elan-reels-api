@@ -30,7 +30,7 @@ export async function judgeImage(params: {
     messages: [{
       role: 'user',
       content: [
-        { type: 'image', source: { type: 'url', url: imageUrl } },
+        { type: 'image', source: { type: 'url', url: imageUrl } as any },
         { type: 'text', text: `Scene brief: ${sceneBrief}\n\nScore this image.` },
       ],
     }],

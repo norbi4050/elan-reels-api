@@ -28,9 +28,9 @@ export async function generateKeyframe(params: {
       model: 'gpt-image-1',
       image: refFile,
       prompt: `Maintain exact same architectural space, materials, and lighting from this reference image. ${prompt}`,
-      size: '1024x1792',
+      size: '1024x1792' as '1024x1024',
     });
-    const editUrl = editResponse.data[0].url;
+    const editUrl = editResponse.data?.[0]?.url;
     if (!editUrl) throw new Error('generateKeyframe: OpenAI edit returned no URL');
     return editUrl;
   }
@@ -38,13 +38,13 @@ export async function generateKeyframe(params: {
   const response = await openai.images.generate({
     model: 'gpt-image-1',
     prompt,
-    size: '1024x1792',
+    size: '1024x1792' as '1024x1024',
     quality: 'high',
     n: 1,
     // @ts-ignore — gpt-image-1 supports url format
     response_format: 'url',
   });
-  const url = response.data[0].url;
+  const url = response.data?.[0]?.url;
   if (!url) throw new Error('generateKeyframe: OpenAI returned no URL');
   return url;
 }

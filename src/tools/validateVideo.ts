@@ -33,7 +33,7 @@ export async function validateVideo(params: {
         }
       }
 
-      const duration = parseFloat(data.format.duration ?? '0');
+      const duration = parseFloat(String(data.format.duration ?? '0'));
       if (Math.abs(duration - expectedDurationS) > 0.5) {
         errors.push(`Duration ${duration.toFixed(1)}s differs from expected ${expectedDurationS}s by > 0.5s`);
       }
