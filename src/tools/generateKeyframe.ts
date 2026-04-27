@@ -5,15 +5,20 @@ import { config } from '../config.js';
 import { getShotTemplate, getVisualSystem, supabase } from '../supabase.js';
 import type { Scene, ShotTemplate } from '../types/index.js';
 
-const openai = new OpenAI({ apiKey: config.openaiKey, timeout: 120000 });
+const openai = new OpenAI({ apiKey: config.openaiKey, timeout: 300000 });
 
 async function uploadBase64ToStorage(b64: string): Promise<string> {
   const buffer = Buffer.from(b64, 'base64');
   const filename = `keyframes/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-  const { error } = await supabase.storage
-    .from('reels-videos')
-    .upload(filename, buffer, { contentType: 'image/jpeg', upsert: false });
-  if (error) throw new Error(`generateKeyframe: Storage upload failed: ${error.message}`);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { error } = await supabase.storage
+      .from('reels-videos')
+      .upload(filename, buffer, { contentType: 'image/jpeg', upsert: false });
+    if (!error) break;
+    if (attempt === 2) throw new Error(`generateKeyframe: Storage upload failed: ${error.message}`);
+    console.warn(`[generateKeyframe] storage upload attempt ${attempt} failed: ${error.message} — retrying`);
+    await new Promise(r => setTimeout(r, 5000));
+  }
   const { data: { publicUrl } } = supabase.storage.from('reels-videos').getPublicUrl(filename);
   return publicUrl;
 }
