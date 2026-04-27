@@ -2,10 +2,21 @@
 
 import OpenAI from 'openai';
 import { config } from '../config.js';
-import { getShotTemplate, getVisualSystem } from '../supabase.js';
+import { getShotTemplate, getVisualSystem, supabase } from '../supabase.js';
 import type { Scene, ShotTemplate } from '../types/index.js';
 
 const openai = new OpenAI({ apiKey: config.openaiKey });
+
+async function uploadBase64ToStorage(b64: string): Promise<string> {
+  const buffer = Buffer.from(b64, 'base64');
+  const filename = `keyframes/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+  const { error } = await supabase.storage
+    .from('reels-videos')
+    .upload(filename, buffer, { contentType: 'image/jpeg', upsert: false });
+  if (error) throw new Error(`generateKeyframe: Storage upload failed: ${error.message}`);
+  const { data: { publicUrl } } = supabase.storage.from('reels-videos').getPublicUrl(filename);
+  return publicUrl;
+}
 
 export async function generateKeyframe(params: {
   scene: Scene;
@@ -30,9 +41,9 @@ export async function generateKeyframe(params: {
       prompt: `Maintain exact same architectural space, materials, and lighting from this reference image. ${prompt}`,
       size: '1024x1792' as '1024x1024',
     });
-    const editUrl = editResponse.data?.[0]?.url;
-    if (!editUrl) throw new Error('generateKeyframe: OpenAI edit returned no URL');
-    return editUrl;
+    const b64 = editResponse.data?.[0]?.b64_json;
+    if (!b64) throw new Error('generateKeyframe: OpenAI edit returned no image data');
+    return uploadBase64ToStorage(b64);
   }
 
   const response = await openai.images.generate({
@@ -41,12 +52,10 @@ export async function generateKeyframe(params: {
     size: '1024x1792' as '1024x1024',
     quality: 'high',
     n: 1,
-    // @ts-ignore — gpt-image-1 supports url format
-    response_format: 'url',
   });
-  const url = response.data?.[0]?.url;
-  if (!url) throw new Error('generateKeyframe: OpenAI returned no URL');
-  return url;
+  const b64 = response.data?.[0]?.b64_json;
+  if (!b64) throw new Error('generateKeyframe: OpenAI returned no image data');
+  return uploadBase64ToStorage(b64);
 }
 
 function buildPrompt(scene: Scene, template: ShotTemplate, vs: Record<string, unknown>, role: 'start' | 'end'): string {
