@@ -5,7 +5,7 @@ import { config } from '../config.js';
 import { getShotTemplate, getVisualSystem, supabase } from '../supabase.js';
 import type { Scene, ShotTemplate } from '../types/index.js';
 
-const openai = new OpenAI({ apiKey: config.openaiKey });
+const openai = new OpenAI({ apiKey: config.openaiKey, timeout: 120000 });
 
 async function uploadBase64ToStorage(b64: string): Promise<string> {
   const buffer = Buffer.from(b64, 'base64');
@@ -32,7 +32,7 @@ export async function generateKeyframe(params: {
   const prompt = buildPrompt(scene, template, vs, role);
 
   if (referenceImageUrl) {
-    const refResponse = await fetch(referenceImageUrl);
+    const refResponse = await fetch(referenceImageUrl, { signal: AbortSignal.timeout(30000) });
     const refBuffer = await refResponse.arrayBuffer();
     const refFile = new File([refBuffer], 'reference.jpg', { type: 'image/jpeg' });
     const editResponse = await openai.images.edit({
