@@ -39,7 +39,7 @@ export async function generateKeyframe(params: {
       model: 'gpt-image-1',
       image: refFile,
       prompt: `Maintain exact same architectural space, materials, and lighting from this reference image. ${prompt}`,
-      size: '1024x1792' as '1024x1024',
+      size: '1024x1536' as '1024x1024',
     });
     const b64 = editResponse.data?.[0]?.b64_json;
     if (!b64) throw new Error('generateKeyframe: OpenAI edit returned no image data');
@@ -49,7 +49,7 @@ export async function generateKeyframe(params: {
   const response = await openai.images.generate({
     model: 'gpt-image-1',
     prompt,
-    size: '1024x1792' as '1024x1024',
+    size: '1024x1536' as '1024x1024',
     quality: 'high',
     n: 1,
   });
@@ -72,7 +72,7 @@ function buildPrompt(scene: Scene, template: ShotTemplate, vs: Record<string, un
     `Color grading: ${vs.color_grading as string}`,
     `Lens: ${lens}`,
     `Materials: polished concrete, dark wood, tempered glass, brushed steel`,
-    `Portrait orientation 9:16, 1080x1920px`,
+    `Portrait orientation 2:3, 1024x1536px`,
     `NEGATIVE: ${vs.negative_system as string}`,
   ].join('. ');
 }
